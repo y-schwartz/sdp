@@ -1,0 +1,15 @@
+logging.level.org.yschwartz: INFO
+
+codeTypes:
+  - name: python
+    from: python
+    installCommand: pip install
+    entryPoint: 'python'
+    mainFileName: main.py
+  - name: bash
+    from: debian
+    preInstallCommands:
+      - 'apt-get update'
+    installCommand: 'apt-get install -y'
+    entryPoint: '/bin/bash'
+    mainFileName: main.sh

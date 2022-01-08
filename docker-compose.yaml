@@ -1,0 +1,111 @@
+version: '3'
+
+services:
+  mongo:
+    image: mongo
+    container_name: mongo
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=root
+      - MONGO_INITDB_ROOT_PASSWORD=root
+      - MONGO_INITDB_DATABASE=sdp
+      - TZ=Asia/Jerusalem
+    healthcheck:
+      test: echo 'db.runCommand({serverStatus:1}).ok' | mongo admin -u root -p root --quiet | grep 1
+      interval: 10s
+      timeout: 10s
+      retries: 10
+    networks:
+      - sdp
+    volumes:
+      - mongo:/data/db
+  mongo-express:
+    image: mongo-express
+    container_name: mongo-express
+    environment:
+      - ME_CONFIG_MONGODB_SERVER=mongo
+      - ME_CONFIG_MONGODB_PORT=27017
+      - ME_CONFIG_MONGODB_ENABLE_ADMIN=true
+      - ME_CONFIG_MONGODB_AUTH_DATABASE=admin
+      - ME_CONFIG_MONGODB_AUTH_USERNAME=root
+      - ME_CONFIG_MONGODB_AUTH_PASSWORD=root
+      - ME_CONFIG_BASICAUTH_USERNAME=express
+      - ME_CONFIG_BASICAUTH_PASSWORD=express
+      - TZ=Asia/Jerusalem
+    depends_on:
+      mongo:
+        condition: service_healthy
+    networks:
+      - sdp
+    ports:
+      - "8081:8081"
+  socat:
+    image: jmb12686/socat
+    container_name: socat
+    command: [ "TCP-LISTEN:2375,fork,reuseaddr", "UNIX:/var/run/docker.sock" ]
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - sdp
+    environment:
+      - TZ=Asia/Jerusalem
+  sdp-sever:
+    image: yyschwartz/sdp
+    container_name: sdp-sever
+    environment:
+      - SPRING_DATA_MONGODB_DATABASE=sdp
+      - SPRING_DATA_MONGODB_USERNAME=root
+      - SPRING_DATA_MONGODB_PASSWORD=root
+      - SPRING_DATA_MONGODB_AUTHENTICATION_DATABASE=admin
+      - SPRING_DATA_MONGODB_HOST=mongo
+      - SPRING_DATA_MONGODB_PORT=27017
+      - DOCKER_HOST=socat
+      - TZ=Asia/Jerusalem
+    depends_on:
+      mongo:
+        condition: service_healthy
+      socat:
+        condition: service_started
+    networks:
+      - sdp
+    ports:
+      - "8080:8080"
+    volumes:
+      - resources:/etc/sdp/resources
+      - /etc/sdp:/etc/sdp
+      - ./properties.yaml:/properties.yaml
+  appsmith:
+    image: index.docker.io/appsmith/appsmith-ce
+    container_name: appsmith
+    networks:
+      - sdp
+    environment:
+      - TZ=Asia/Jerusalem
+    volumes:
+      - appsmith:/appsmith-stacks
+    ports:
+      - "8000:80"
+    depends_on:
+      - sdp-sever
+  code-server:
+    image: ghcr.io/linuxserver/code-server
+    container_name: code-server
+    ports:
+      - "8443:8443"
+    environment:
+      - TZ=Asia/Jerusalem
+      - PUID=0
+      - PGID=0
+    volumes:
+      - resources:/home
+
+networks:
+  sdp:
+    external: false
+
+volumes:
+  mongo:
+    external: false
+  resources:
+    external: false
+  appsmith:
+    external: false
